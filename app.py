@@ -7,7 +7,7 @@ from difflib import SequenceMatcher
 # --- 페이지 설정 ---
 st.set_page_config(page_title="AI 기반 소논문 설계 가이드", layout="wide")
 
-# --- API 키 ---
+# --- API 키 설정 ---
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # --- 데이터 불러오기 ---
@@ -18,22 +18,25 @@ def load_data():
 
 df = load_data()
 
-# --- 유사도 계산 ---
+# --- 유사도 계산 함수 ---
 def find_similar_topics(input_keyword, db, top_n=3):
     def similarity(a, b):
-        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+        return SequenceMatcher(None, str(a).lower(), str(b).lower()).ratio()
+
+    if "Project Title" not in db.columns:
+        raise KeyError("❗ 데이터에 'Project Title' 컬럼이 없습니다. 컬럼명을 확인해주세요.")
+
     db["similarity"] = db["Project Title"].apply(lambda x: similarity(input_keyword, x))
     return db.sort_values(by="similarity", ascending=False).head(top_n)
 
-
-# --- GPT 프롬프트 ---
+# --- GPT 프롬프트 생성 ---
 def generate_topic_overview(keyword):
     prompt = f"""
     사용자가 제시한 관심 주제: {keyword}
     1. 이 주제의 주요 과학적 의미와 배경을 알려줘.
     2. 현재 이와 관련한 사회/환경적 이슈를 설명해줘.
     3. 이 주제에 대해 고등학생이 탐구 가능한 소논문 연구 주제 5개를 추천해줘.
-    형식: 
+    형식:
     - 주제 제목
     - 연구 목적 (한 줄)
     - 예상 실험 방법 요약 (한 줄)
@@ -44,7 +47,7 @@ def generate_topic_overview(keyword):
     )
     return response.choices[0].message.content
 
-# --- PDF 저장 ---
+# --- PDF 저장 함수 ---
 def save_as_pdf(title, content):
     pdf = FPDF()
     pdf.add_page()
@@ -83,7 +86,7 @@ elif st.session_state.step == 2:
         st.warning("📌 유사한 실제 DB 주제를 찾을 수 없었습니다.")
     else:
         for idx, row in similar.iterrows():
-            st.markdown(f"- {row['title']} ({row['year']}년 출품)")
+            st.markdown(f"- {row['Project Title']} ({row['Year']}년 출품)")
     if st.button("➡️ 주제 선택하고 심층 분석 진행"):
         st.session_state.step = 3
         st.rerun()
