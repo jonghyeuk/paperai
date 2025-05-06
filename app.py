@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import openai
+from openai import OpenAI
 from fpdf import FPDF
 from difflib import SequenceMatcher
 
@@ -8,7 +8,7 @@ from difflib import SequenceMatcher
 st.set_page_config(page_title="AI 기반 소논문 설계 가이드", layout="wide")
 
 # --- API 키 ---
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # --- 데이터 불러오기 ---
 @st.cache_data
@@ -37,14 +37,11 @@ def generate_topic_overview(keyword):
     - 연구 목적 (한 줄)
     - 예상 실험 방법 요약 (한 줄)
     """
-from openai import OpenAI
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-response = client.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[{"role": "user", "content": prompt}]
-)
-answer = response.choices[0].message.content
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
 
 # --- PDF 저장 ---
 def save_as_pdf(title, content):
