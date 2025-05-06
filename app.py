@@ -37,11 +37,14 @@ def generate_topic_overview(keyword):
     - 연구 목적 (한 줄)
     - 예상 실험 방법 요약 (한 줄)
     """
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response["choices"][0]["message"]["content"]
+from openai import OpenAI
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": prompt}]
+)
+answer = response.choices[0].message.content
 
 # --- PDF 저장 ---
 def save_as_pdf(title, content):
