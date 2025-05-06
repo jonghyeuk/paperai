@@ -1,12 +1,17 @@
 import streamlit as st
 from fpdf import FPDF
 import tempfile
+import os
 
-# PDF 생성 함수 (한글은 대체 문자로 출력)
+# PDF 생성 함수 (한글도 제대로 출력되도록 수정)
 def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+
+    # 한글 폰트 등록 (같은 폴더에 있어야 함)
+    font_path = os.path.join(os.path.dirname(__file__), "NanumGothic-Regular.ttf")
+    pdf.add_font("Nanum", "", font_path, uni=True)
+    pdf.set_font("Nanum", size=12)
 
     for line in text.split("\n"):
         try:
@@ -24,7 +29,7 @@ def create_pdf(text):
                 mime="application/pdf"
             )
 
-# 상태 초기화 함수 (재탐색용)
+# 상태 초기화 함수
 def reset_state():
     for key in st.session_state.keys():
         del st.session_state[key]
