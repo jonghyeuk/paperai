@@ -4,4 +4,4 @@ pandas
 scikit-learn
 fpdf
 openpyxl
-deep_translator
+deep-translator
