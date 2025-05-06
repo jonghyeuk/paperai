@@ -22,8 +22,9 @@ df = load_data()
 def find_similar_topics(input_keyword, db, top_n=3):
     def similarity(a, b):
         return SequenceMatcher(None, a.lower(), b.lower()).ratio()
-db["similarity"] = db["Project Title"].apply(lambda x: similarity(input_keyword, x))
+    db["similarity"] = db["Project Title"].apply(lambda x: similarity(input_keyword, x))
     return db.sort_values(by="similarity", ascending=False).head(top_n)
+
 
 # --- GPT 프롬프트 ---
 def generate_topic_overview(keyword):
