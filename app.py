@@ -1,95 +1,68 @@
+# app.py
 import streamlit as st
-st.set_page_config(page_title="소논문 AI", layout="wide")
-from openai import OpenAI
-import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from fpdf import FPDF
-import tempfile
-from deep_translator import GoogleTranslator
+from generate import generate_suggestions, generate_report
+from db_search import search_similar_papers
+from utils import create_pdf, reset_state
 
-# OpenAI 클라이언트 설정
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# 페이지 설정 (UTF-8에서 제일 앞에 오고 st.set_page_config 가운데 가졌어야함)
+st.set_page_config(page_title="AI 소노문 진료 가이드", layout="wide")
 
-# DB 불러오기
-@st.cache_data
-def load_data():
-    df = pd.read_excel("ISEF Final DB.xlsx")
-    return df.dropna(subset=["Project Title"])
+st.title("🧪 AI 기반 소노문 진료 가이드")
+st.markdown("""
+이 앱은 관심 키워드를 입력하면 관련된 실험 주제를 추천하고, 실제 과학 경진대회 데이터를 기반으로 분석과 실험 설계를 도와드립니다.  
+🔍 **GPT 추론 기반** + **실제 제출 논문 DB 기반 유사 사례 제안** + **틈새 주제 가이드** 포함.
+""")
 
-# 데이터 로딩
-df = load_data()
+# 1. 관심 키워드 입력 단계
+with st.form(key="keyword_form"):
+    user_input = st.text_input("**1단계. 관심 있는 키워드를 입력하세요** (예: 효소, 온도, pH)")
+    submitted = st.form_submit_button("투배 시작")
 
-# 페이지 설정
+# 초기화 버튼
+st.sidebar.button("🔄 새 탐색 시작하기", on_click=reset_state)
 
-# 레이아웃 구성
-left, right = st.columns([2, 1])
+if submitted and user_input:
+    # GPT 기반 추천 주제 생성
+    suggestions = generate_suggestions(user_input)
 
-with left:
-    st.title("🧠 AI 기반 소논문 설계 가이드")
-    keyword = st.text_input("🔍 관심 키워드를 입력하세요 (예: enzyme, temperature, bacteria)")
+    st.subheader("🧠 AI 추천 실험 주제")
+    for i, s in enumerate(suggestions, 1):
+        st.markdown(f"**{i}. {s}**")
 
-    if keyword:
-        with st.spinner("GPT가 주제를 생성 중입니다..."):
-            prompt = f"""
-            '{keyword}'를 주제로 할 수 있는 중·고등학생용 과학 소논문 실험 주제를 5개 추천해줘. 한 줄 제목 형식으로.
-            """
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            gpt_topics = [t.strip("- ") for t in response.choices[0].message.content.strip().split("\n") if t.strip()]
+    # 유사 논문 탐색 (내부 DB)
+    similar = search_similar_papers(user_input)
 
-        st.subheader("📌 GPT 추천 주제")
-        selected_gpt = st.radio("아래 추천 주제 중 선택하거나, DB 기반 주제를 아래에서 확인하세요:", gpt_topics)
+    st.subheader("📂 유사 주제 논문 (출품 데이터 기반)")
+    if similar:
+        for item in similar:
+            st.markdown(f"- **{item['title_ko']}**  \
+                        (출품 연도: {item['year']})\n> {item['abstract_ko'][:150]}...")
+    else:
+        st.info("유사한 논문이 DB에 없습니다. GPT가 생성한 주제를 참고해주세요.")
 
-        # 유사 논문 검색
-        vectorizer = TfidfVectorizer()
-        tfidf = vectorizer.fit_transform(df["Project Title"].astype(str))
-        user_vec = vectorizer.transform([keyword])
-        similarities = cosine_similarity(user_vec, tfidf).flatten()
-        top_indices = similarities.argsort()[::-1][:3]
-        top_projects = df.iloc[top_indices][["Year", "Project Title", "Awards Won"]].copy().reset_index(drop=True)
+    # 주제 선택
+    st.markdown("---")
+    all_choices = suggestions + [x['title_ko'] for x in similar]
+    selected = st.selectbox("선택할 주제를 골라주세요:", options=all_choices)
 
-        st.subheader("📚 유사 논문 (실제 대회 제출)")
-        options = [f"{i+1}. {GoogleTranslator(source='en', target='ko').translate(row['Project Title'])} ({row['Year']}) - 수상: {row.get('Awards Won', '없음')}" for i, row in top_projects.iterrows()]
-        selected_db = st.radio("유사 논문 중 선택할 것이 있다면 고르세요:", options=["None"] + options)
+    if st.button("📄 실험 보고서 생성하기"):
+        # 보고서 생성
+        report = generate_report(selected)
+        st.success("완성된 보고서를 아래에서 확인하세요!")
+        st.markdown(report, unsafe_allow_html=True)
 
-        if st.button("이 주제로 실험 설계 생성"):
-            chosen_topic = selected_gpt if selected_db == "None" else top_projects.iloc[int(selected_db[0])-1]['Project Title']
-            analysis_prompt = f"""
-            아래 주제를 바탕으로 실험 설계 문서를 작성해줘:
-            - 서론 (배경과 필요성)
-            - 실험 목적, 가설, 방법, 변수 설정, 예상 결과, 오차 요인
-            - 결론 및 확장 가능성 (틈새 제안 포함)
-            - 마지막에 '이 내용은 GPT 추론 기반의 예시입니다' 명시
-            주제: {chosen_topic}
-            """
-            analysis = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": analysis_prompt}]
-            ).choices[0].message.content
+        # PDF 저장
+        if st.button("📥 PDF로 저장"):
+            create_pdf(report)
 
-            st.success("✅ 실험 설계 생성 완료")
-            st.text_area("📄 결과 요약", analysis, height=400)
-
-            # PDF 저장
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            for line in analysis.split("\n"):
-                pdf.multi_cell(0, 10, line)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
-                pdf.output(tmpfile.name)
-                st.download_button("📥 PDF로 저장", data=open(tmpfile.name, "rb").read(), file_name="experiment_guide.pdf", mime="application/pdf")
-
-with right:
-    st.markdown("""
-    ### 🧭 진행 흐름 안내
-    1️⃣ 관심 키워드 입력 → GPT 주제 추천 + DB 검색<br>
-    2️⃣ 주제 선택 → GPT 기반 실험 설계 생성<br>
-    3️⃣ 실험 목적/가설/방법 등 자동 구성<br>
-    4️⃣ PDF로 저장하거나 다시 탐색 가능<br>
+        # 틈새 제안도 함께
+        st.markdown("""
+        ---
+        🤖 **팁: 선택한 주제 외에도 이런 실험 주제는 어떠신가요?** (GPT가 틈새 가능성 중심으로 추천)
+        """)
+        alt = generate_suggestions(user_input, niche=True)
+        for i, idea in enumerate(alt, 1):
+            st.markdown(f"- {idea}")
 
     💬 **실제 보고서가 아닌, 참고용 분석 예시입니다**
     """)
