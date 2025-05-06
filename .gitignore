@@ -1,0 +1,6 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Streamlit secrets (보안)
+.streamlit/secrets.toml
