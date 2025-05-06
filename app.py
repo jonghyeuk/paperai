@@ -1,4 +1,5 @@
 import streamlit as st
+st.set_page_config(page_title="소논문 AI", layout="wide")
 from openai import OpenAI
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -20,7 +21,6 @@ def load_data():
 df = load_data()
 
 # 페이지 설정
-st.set_page_config(page_title="소논문 AI", layout="wide")
 
 # 레이아웃 구성
 left, right = st.columns([2, 1])
