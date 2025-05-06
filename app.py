@@ -64,5 +64,5 @@ if submitted and user_input:
         for i, idea in enumerate(alt, 1):
             st.markdown(f"- {idea}")
 
-    💬 **실제 보고서가 아닌, 참고용 분석 예시입니다**
+    st.markdown("💬 **실제 보고서가 아닌, 참고용 분석 예시입니다**")
     """)
