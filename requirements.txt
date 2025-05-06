@@ -1,6 +1,7 @@
 streamlit
-openai
+openai>=1.0.0
 pandas
-openpyxl
 scikit-learn
 fpdf
+openpyxl
+deep_translator
